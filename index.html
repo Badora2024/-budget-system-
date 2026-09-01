@@ -1112,9 +1112,37 @@ function bulkLooksLikeLetter(text,match){
 }
 function bulkDocTypeFromText(text){
  const n=bulkNormArabic(text);
- if(n.includes(bulkNormArabic('إلحاق'))||n.includes(bulkNormArabic('استدراك')))return 'supplement';
- if(n.includes(bulkNormArabic('مطالبة'))||n.includes(bulkNormArabic('مطالبه')))return 'claim';
- return 'proposal';
+ const scores={proposal:0,supplement:0,claim:0};
+ const reasons={proposal:[],supplement:[],claim:[]};
+ const add=(type,points,label)=>{scores[type]+=points;reasons[type].push(label)};
+ const has=(phrase)=>n.includes(bulkNormArabic(phrase));
+
+ // الإلحاق/الاستدراك: نعطي العبارات الصريحة أعلى أولوية لأنها قد تتضمن أيضاً عبارة «مشروع الميزانية».
+ if(has('إلحاق بشأن مشروع ميزانية'))add('supplement',120,'إلحاق بشأن مشروع الميزانية');
+ if(has('إلحاق بشأن'))add('supplement',90,'إلحاق بشأن');
+ if(has('كتاب إلحاق'))add('supplement',90,'كتاب إلحاق');
+ if(has('استدراك'))add('supplement',85,'استدراك');
+ if(has('كشف معدل'))add('supplement',65,'كشف معدل');
+ if(has('تعديل عدد المستخدمين')||has('العدد الصحيح للمستخدمين'))add('supplement',55,'تعديل عدد المستخدمين');
+
+ // المطالبة: «إشعار مدين» غالباً مرفق للمطالبة، لذلك لا يكفي وحده لبدء كتاب جديد لكنه يقوّي التصنيف.
+ if(has('كتاب المطالبة'))add('claim',120,'كتاب المطالبة');
+ if(has('الموضوع')&&has('مطالبة'))add('claim',105,'موضوع مطالبة');
+ if(has('مطالبة')||has('مطالبه'))add('claim',80,'مطالبة');
+ if(has('إشعار مدين')||has('اشعار مدين'))add('claim',45,'إشعار مدين');
+ if(has('المبالغ المستحقة')||has('المبلغ المستحق'))add('claim',35,'مبالغ مستحقة');
+
+ // المقترح: نعتمد على عبارات المشروع/التقديرات، لكن بدرجات أقل من الإلحاق الصريح عند اجتماعهما.
+ if(has('كتاب مقترح الميزانية'))add('proposal',120,'كتاب مقترح الميزانية');
+ if(has('مقترح الميزانية'))add('proposal',95,'مقترح الميزانية');
+ if(has('تقديرات مشروع ميزانية'))add('proposal',90,'تقديرات مشروع الميزانية');
+ if(has('مشروع ميزانية الجهات الحكومية المستخدمة للنظم المتكاملة'))add('proposal',70,'مشروع ميزانية الجهات الحكومية');
+ if(has('مشروع الميزانية')&&has('السنة المالية'))add('proposal',45,'مشروع الميزانية والسنة المالية');
+
+ const ordered=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+ const [bestType,bestScore]=ordered[0], secondScore=ordered[1][1];
+ const ambiguous=bestScore<55 || (secondScore>0 && bestScore-secondScore<20);
+ return {type:ambiguous?'':bestType,score:bestScore,secondScore,ambiguous,reasons:reasons[bestType]};
 }
 async function bulkExtractText(page,forceOcr=false,pageNo=0,total=0){
  let text='';
@@ -1142,7 +1170,7 @@ async function analyzeBulkScan(){
   for(let i=1;i<=total;i++){
    bulkSetProgress(`فحص الصفحة ${i} من ${total} وتحديد الجهة وبداية الكتاب...`);
    const page=await pdf.getPage(i);const text=await bulkExtractText(page,forceOcr,i,total);if(bulkNormArabic(text).length<25)hasOcr=true;
-   const match=bulkAgencyMatch(text);pages.push({pageNo:i,text,match,isStart:bulkLooksLikeLetter(text,match),docType:bulkDocTypeFromText(text)});
+   const match=bulkAgencyMatch(text);const typeInfo=bulkDocTypeFromText(text);pages.push({pageNo:i,text,match,isStart:bulkLooksLikeLetter(text,match),typeInfo});
   }
   let starts=pages.filter(x=>x.isStart);
   if(!starts.length){
@@ -1154,29 +1182,37 @@ async function analyzeBulkScan(){
   for(let j=0;j<starts.length;j++){
    const st=starts[j],next=starts[j+1];const from=st.pageNo,to=next?next.pageNo-1:total;
    if(to<from)continue;
-   groups.push({id:'bg_'+Date.now().toString(36)+'_'+j,from,to,agencySeq:st.match.agency.seq,agencyName:st.match.agency.agency,docType:st.docType,text:st.text,confidence:st.match.score});
+   groups.push({id:'bg_'+Date.now().toString(36)+'_'+j,from,to,agencySeq:st.match.agency.seq,agencyName:st.match.agency.agency,docType:st.typeInfo.type,text:st.text,agencyConfidence:st.match.score,typeConfidence:st.typeInfo.score,typeAmbiguous:st.typeInfo.ambiguous,typeReasons:st.typeInfo.reasons||[],agencyReviewed:false,typeReviewed:false});
   }
-  // إزالة بدايات مكررة داخل نفس مجموعة/نفس الجهة إذا ظهرت الجهة في صفحة مرفق ملاصقة
-  const cleaned=[];
-  for(const g of groups){
-   const prev=cleaned[cleaned.length-1];
-   if(prev&&prev.agencySeq===g.agencySeq&&g.from===prev.to+1&&g.to===g.from){prev.to=g.to;continue}
-   cleaned.push(g);
-  }
+  // لا ندمج أي بدايتين مكتشفتين تلقائياً حتى لو كانتا لنفس الجهة ونفس النوع؛
+  // لأنهما قد يمثلان كتابين مستقلين. كل مرفقات الكتاب تبقى معه حتى بداية الكتاب التالية.
+  const cleaned=[...groups];
   bulkScanContext={file,bytes,groups:cleaned,totalPages:total};renderBulkScanReview();
   bulkSetProgress(`تم تحليل ${total} صفحة والتعرف على ${cleaned.length} كتاب/مجموعة. راجع الجهة ونوع الكتاب ثم اضغط «اعتماد وتوزيع على الجهات».`,'done');
  }catch(e){console.error(e);bulkScanContext=null;document.getElementById('bulkScanResults').innerHTML='';bulkSetProgress(e.message||'حدث خطأ أثناء الفحص','error');}
  finally{if(btn)btn.disabled=false}
 }
+function bulkGroupStrong(g){
+ return !!(g&&g.agencySeq&&g.docType&&g.agencyConfidence>=100&&g.typeConfidence>=80&&!g.typeAmbiguous);
+}
+function bulkGroupReady(g){return bulkGroupStrong(g)||!!g?.manualConfirmed}
 function renderBulkScanReview(){
  const box=document.getElementById('bulkScanResults');if(!box||!bulkScanContext)return;
  const agencyOpts=state.agencies.map(a=>`<option value="${a.seq}">${a.seq} - ${esc(a.agency)}</option>`).join('');
- const rows=bulkScanContext.groups.map((g,i)=>`<tr><td>${i+1}</td><td>${g.from===g.to?g.from:g.from+' - '+g.to}</td><td><select onchange="bulkReviewSetAgency(${i},this.value)">${agencyOpts}</select></td><td><select onchange="bulkReviewSetType(${i},this.value)"><option value="proposal">كتاب مقترح الميزانية</option><option value="supplement">كتاب إلحاق / استدراك</option><option value="claim">كتاب مطالبة</option><option value="other">كتاب آخر</option></select></td><td><span class="${g.confidence>=100?'bulk-scan-ok':'bulk-scan-warn'}">${g.confidence>=100?'مطابقة قوية':'تحتاج مراجعة'}</span></td></tr>`).join('');
- box.innerHTML=`<div class="alert okbox">تم الاكتشاف آلياً. يمكنك تصحيح أي جهة أو نوع كتاب قبل الاعتماد النهائي.</div><div class="tablewrap"><table><thead><tr><th>م</th><th>صفحات الملف</th><th>الجهة المكتشفة</th><th>نوع الكتاب</th><th>نتيجة القراءة</th></tr></thead><tbody>${rows}</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary" id="bulkScanCommitBtn" onclick="commitBulkScan()">اعتماد وتوزيع على الجهات</button><button class="btn" onclick="clearBulkScan()">إلغاء النتائج</button></div>`;
- const sels=box.querySelectorAll('tbody tr');sels.forEach((tr,i)=>{const g=bulkScanContext.groups[i];tr.querySelectorAll('select')[0].value=String(g.agencySeq);tr.querySelectorAll('select')[1].value=g.docType});
+ const typeOpts=`<option value="">— اختر نوع الكتاب —</option><option value="proposal">كتاب مقترح الميزانية</option><option value="supplement">كتاب إلحاق / استدراك</option><option value="claim">كتاب مطالبة</option>`;
+ const rows=bulkScanContext.groups.map((g,i)=>{
+  const strong=bulkGroupStrong(g), pagesCount=g.to-g.from+1, attachments=Math.max(0,pagesCount-1);
+  const typeWhy=(g.typeReasons||[]).slice(0,2).join('، ');
+  const status=strong?`<span class="bulk-scan-ok">مؤكد آلياً</span>`:`<span class="bulk-scan-warn">تحتاج مراجعة</span>`;
+  return `<tr><td>${i+1}</td><td>${g.from===g.to?g.from:g.from+' - '+g.to}<div class="muted" style="margin-top:3px">${pagesCount} صفحة — ${attachments} مرفق/صفحة بعد الكتاب</div></td><td><select onchange="bulkReviewSetAgency(${i},this.value)">${agencyOpts}</select><div class="muted" style="margin-top:3px">ثقة الجهة: ${Math.min(100,Math.round(g.agencyConfidence||0))}%</div></td><td><select onchange="bulkReviewSetType(${i},this.value)">${typeOpts}</select><div class="muted" style="margin-top:3px">ثقة النوع: ${Math.min(100,Math.round(g.typeConfidence||0))}%${typeWhy?' — '+esc(typeWhy):''}</div></td><td>${status}<label style="display:block;margin-top:7px;font-size:12px"><input type="checkbox" ${g.manualConfirmed?'checked':''} onchange="bulkReviewConfirm(${i},this.checked)"> راجعت الجهة والنوع والمرفقات</label></td></tr>`;
+ }).join('');
+ const ready=bulkScanContext.groups.filter(bulkGroupReady).length,total=bulkScanContext.groups.length;
+ box.innerHTML=`<div class="alert ${ready===total?'okbox':''}"><b>مراجعة قبل الاعتماد:</b> النظام يفصل بين «المقترح» و«الإلحاق/الاستدراك» و«المطالبة»، ويعتبر الصفحات التالية للكتاب مرفقاته حتى بداية كتاب جديد. الحالات غير المؤكدة آلياً يجب مراجعتها ووضع علامة التأكيد يدوياً. <b>جاهز ${ready} من ${total}</b>.</div><div class="tablewrap"><table><thead><tr><th>م</th><th>الكتاب ومرفقاته</th><th>الجهة المكتشفة</th><th>نوع الكتاب</th><th>التأكيد</th></tr></thead><tbody>${rows}</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary" id="bulkScanCommitBtn" onclick="commitBulkScan()" ${ready===total?'':'disabled'}>اعتماد وتوزيع على الجهات</button><button class="btn" onclick="clearBulkScan()">إلغاء النتائج</button></div>`;
+ const trs=box.querySelectorAll('tbody tr');trs.forEach((tr,i)=>{const g=bulkScanContext.groups[i];tr.querySelectorAll('select')[0].value=String(g.agencySeq||'');tr.querySelectorAll('select')[1].value=g.docType||''});
 }
-function bulkReviewSetAgency(i,v){const g=bulkScanContext?.groups?.[i],a=archiveAgencyBySeq(Number(v));if(g&&a){g.agencySeq=a.seq;g.agencyName=a.agency}}
-function bulkReviewSetType(i,v){const g=bulkScanContext?.groups?.[i];if(g)g.docType=v}
+function bulkReviewSetAgency(i,v){const g=bulkScanContext?.groups?.[i],a=archiveAgencyBySeq(Number(v));if(g&&a){g.agencySeq=a.seq;g.agencyName=a.agency;g.manualConfirmed=false;renderBulkScanReview()}}
+function bulkReviewSetType(i,v){const g=bulkScanContext?.groups?.[i];if(g){g.docType=v;g.manualConfirmed=false;renderBulkScanReview()}}
+function bulkReviewConfirm(i,checked){const g=bulkScanContext?.groups?.[i];if(!g)return;if(checked&&(!g.agencySeq||!g.docType)){alert('يجب تحديد الجهة ونوع الكتاب أولاً.');g.manualConfirmed=false}else g.manualConfirmed=!!checked;renderBulkScanReview()}
 function clearBulkScan(){bulkScanContext=null;const r=document.getElementById('bulkScanResults');if(r)r.innerHTML='';const p=document.getElementById('bulkScanProgress');if(p){p.className='bulk-scan-progress';p.innerHTML=''}const f=document.getElementById('bulkScanFile');if(f)f.value=''}
 async function bulkMakePdfBlob(srcBytes,from,to){
  await ensureBulkPdfLibs(false);const src=await window.PDFLib.PDFDocument.load(srcBytes);const out=await window.PDFLib.PDFDocument.create();const idx=[];for(let p=from;p<=to;p++)idx.push(p-1);const copied=await out.copyPages(src,idx);copied.forEach(pg=>out.addPage(pg));const b=await out.save();return new Blob([b],{type:'application/pdf'});
@@ -1184,12 +1220,16 @@ async function bulkMakePdfBlob(srcBytes,from,to){
 async function commitBulkScan(){
  if(!bulkScanContext?.groups?.length)return;const btn=document.getElementById('bulkScanCommitBtn');if(btn)btn.disabled=true;ensureArchiveState();
  try{
+  const pending=bulkScanContext.groups.map((g,i)=>({g,i})).filter(x=>!bulkGroupReady(x.g));
+  if(pending.length)throw new Error('لا يمكن الاعتماد: توجد '+pending.length+' مجموعة غير مؤكدة. راجع الجهة ونوع الكتاب والمرفقات ثم ضع علامة التأكيد.');
+  const invalid=bulkScanContext.groups.map((g,i)=>({g,i})).filter(x=>!x.g.agencySeq||!['proposal','supplement','claim'].includes(x.g.docType));
+  if(invalid.length)throw new Error('يوجد صف بدون جهة صحيحة أو نوع كتاب من الأنواع الثلاثة المعتمدة.');
   const total=bulkScanContext.groups.length;
   for(let i=0;i<total;i++){
    const g=bulkScanContext.groups[i],agency=archiveAgencyBySeq(g.agencySeq);if(!agency)throw new Error('يوجد كتاب بدون جهة صحيحة في صف '+(i+1));
    bulkSetProgress(`تجهيز وأرشفة كتاب ${i+1} من ${total}: ${agency.agency}`);
    const blob=await bulkMakePdfBlob(bulkScanContext.bytes,g.from,g.to);const fileName=`${archiveSafeName(agency.agency)}_${archiveTypeLabel(g.docType).replace(/\s+/g,'_')}_صفحات_${g.from}-${g.to}.pdf`;
-   const scanFile=new File([blob],fileName,{type:'application/pdf'});const rec={id:'bk_'+Date.now().toString(36)+'_'+i+'_'+Math.random().toString(36).slice(2,6),createdAt:new Date().toISOString(),files:[],agencySeq:agency.seq,agencyName:agency.agency,docType:g.docType,fiscalYear:state.settings.fiscalYear,outboundNo:'',outboundDate:'',exportDate:todayIso(),subject:archiveTypeLabel(g.docType)+' - '+agency.agency,notes:`أرشفة آلية من ملف Scan جماعي؛ الصفحات ${g.from} إلى ${g.to} من أصل ${bulkScanContext.totalPages} صفحة.`,updatedAt:new Date().toISOString(),bulkScan:true};
+   const scanFile=new File([blob],fileName,{type:'application/pdf'});const rec={id:'bk_'+Date.now().toString(36)+'_'+i+'_'+Math.random().toString(36).slice(2,6),createdAt:new Date().toISOString(),files:[],agencySeq:agency.seq,agencyName:agency.agency,docType:g.docType,fiscalYear:state.settings.fiscalYear,outboundNo:'',outboundDate:'',exportDate:todayIso(),subject:archiveTypeLabel(g.docType)+' - '+agency.agency,notes:`أرشفة آلية من ملف Scan جماعي؛ النوع: ${archiveTypeLabel(g.docType)}؛ صفحات الكتاب ومرفقاته ${g.from} إلى ${g.to} من أصل ${bulkScanContext.totalPages} صفحة؛ عدد الصفحات الملحقة بعد صفحة بداية الكتاب: ${Math.max(0,g.to-g.from)}.`,updatedAt:new Date().toISOString(),bulkScan:true};
    rec.files.push(await uploadArchiveFile(scanFile,rec.id,agency.seq,'scan'));state.bookArchive.unshift(rec);autoSave();
   }
   renderArchive();bulkSetProgress(`تم توزيع وأرشفة ${total} كتاباً على الجهات بنجاح. يمكن فتح كل جهة من جدول الأرشيف أدناه.`,'done');toast('تم توزيع ملف الـ Scan الجماعي على الجهات');bulkScanContext=null;document.getElementById('bulkScanResults').innerHTML='';
