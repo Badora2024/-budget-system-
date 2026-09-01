@@ -728,6 +728,16 @@ html,body{height:auto!important;min-height:0!important;margin:0!important;paddin
 .paper.landscape{min-height:0!important;height:auto!important}.paper.landscape.report-paper{height:209mm!important;min-height:0!important;max-height:209mm!important}.paper:last-child,.paper:last-of-type{break-after:auto!important;page-break-after:auto!important}.paper>*:last-child{margin-bottom:0!important}
 }
 
+
+/* ===== أرشيف الكتب المصدرة والـ Scan ===== */
+.archive-grid{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:12px}
+.archive-files{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.archive-file-row{display:flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fafcfd}
+.archive-file-meta{min-width:0}.archive-file-name{font-weight:700;overflow-wrap:anywhere}.archive-file-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.archive-actions{display:flex;gap:6px;flex-wrap:wrap}.archive-status{font-weight:700;color:var(--accent2)}
+.archive-editor-title{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap}
+@media(max-width:850px){.archive-grid{grid-template-columns:1fr}}
+@media print{#page-archive{display:none!important}}
 </style>
 </head>
 <body>
@@ -753,6 +763,7 @@ html,body{height:auto!important;min-height:0!important;margin:0!important;paddin
   <button class="navbtn" data-page="projects">مشاريع مقترح الميزانية</button>
   <button class="navbtn" data-page="distribution">التوزيع الآلي</button>
   <button class="navbtn" data-page="documents">الكتب والمرفقات</button>
+  <button class="navbtn" data-page="archive">أرشيف الكتب المصدرة</button>
   <button class="navbtn" data-page="claims">المطالبات والإشعارات</button>
   <button class="navbtn" data-page="reports">التقارير</button>
   <button class="navbtn" data-page="settings">الإعدادات</button>
@@ -809,6 +820,7 @@ html,body{height:auto!important;min-height:0!important;margin:0!important;paddin
     <div class="field"><label>صفة التوقيع (قابلة للتعديل)</label><input id="docSignatory" placeholder="مثال: وكيل ديوان الخدمة المدنية (ندباً)" oninput="updateManualSignatory(this.value,'proposal')"></div>
     <div class="field"><label>اسم الموقّع (قابل للتعديل)</label><input id="docSignatoryName" placeholder="مثال: صلاح خالد محمد الصقعبي" oninput="updateManualSignatoryName(this.value,'proposal')"></div>
     <button class="btn primary" onclick="printCurrentPreview()">طباعة / PDF</button>
+    <button class="btn" onclick="openArchiveForCurrent('proposal')">أرشفة / Scan الكتاب</button>
     <button class="btn" onclick="printAllProposal()">طباعة جميع الكتب الأصلية</button>
   </div>
   <div class="supplement-panel" id="supplementPanel">
@@ -829,6 +841,42 @@ html,body{height:auto!important;min-height:0!important;margin:0!important;paddin
  <div class="preview-shell" id="proposalPreview"></div>
 </section>
 
+
+<section id="page-archive" class="page">
+ <div class="pagehead"><div><h2>أرشيف الكتب المصدّرة</h2><p>ربط كل كتاب صادر بجهته، مع حفظ نسخة الـ Scan وجميع المرفقات في مكان واحد وإتاحتها من جميع الأجهزة.</p></div>
+  <div class="page-actions"><button class="btn primary" onclick="newArchiveRecord()">+ تسجيل كتاب صادر</button></div>
+ </div>
+ <div class="panel" id="archiveEditorPanel">
+  <div class="archive-editor-title"><h3 id="archiveEditorTitle">تسجيل كتاب صادر جديد</h3><span class="archive-status" id="archiveUploadStatus"></span></div>
+  <div class="archive-grid">
+   <div class="field"><label>الجهة</label><select id="archiveAgency"></select></div>
+   <div class="field"><label>نوع الكتاب</label><select id="archiveDocType"><option value="proposal">كتاب مقترح الميزانية</option><option value="supplement">كتاب إلحاق / استدراك</option><option value="claim">كتاب مطالبة</option><option value="other">كتاب آخر</option></select></div>
+   <div class="field"><label>السنة المالية</label><input id="archiveYear"></div>
+   <div class="field"><label>رقم الصادر</label><input id="archiveOutboundNo" placeholder="رقم الصادر"></div>
+   <div class="field"><label>تاريخ الصادر</label><input id="archiveOutboundDate" type="date"></div>
+   <div class="field"><label>تاريخ التصدير / الأرشفة</label><input id="archiveExportDate" type="date"></div>
+  </div>
+  <div class="field" style="margin-top:12px"><label>الموضوع</label><input id="archiveSubject" placeholder="موضوع الكتاب"></div>
+  <div class="field" style="margin-top:12px"><label>ملاحظات</label><textarea id="archiveNotes" placeholder="أي ملاحظات إضافية"></textarea></div>
+  <div class="grid2" style="margin-top:12px">
+   <div class="field"><label>نسخة Scan للكتاب (PDF أو صورة)</label><input id="archiveScanFile" type="file" accept="application/pdf,image/*"></div>
+   <div class="field"><label>مرفقات الكتاب</label><input id="archiveAttachments" type="file" multiple accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"></div>
+  </div>
+  <div id="archiveCurrentFiles" class="archive-files"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+   <button class="btn primary" id="archiveSaveBtn" onclick="saveArchiveRecord()">حفظ وربط الكتاب بالجهة</button>
+   <button class="btn" onclick="newArchiveRecord()">إلغاء / جديد</button>
+  </div>
+ </div>
+ <div class="panel">
+  <div class="grid2">
+   <div class="field"><label>تصفية حسب الجهة</label><select id="archiveFilterAgency" onchange="renderArchive()"><option value="">جميع الجهات</option></select></div>
+   <div class="field"><label>بحث</label><input id="archiveSearch" placeholder="رقم الصادر، الموضوع، نوع الكتاب..." oninput="renderArchive()"></div>
+  </div>
+ </div>
+ <div class="panel"><div class="tablewrap"><table><thead><tr><th>م</th><th>الجهة</th><th>نوع الكتاب</th><th>رقم الصادر</th><th>تاريخ الصادر</th><th>الملفات</th><th>إجراء</th></tr></thead><tbody id="archiveBody"></tbody></table></div></div>
+</section>
+
 <section id="page-claims" class="page">
  <div class="pagehead"><div><h2>المطالبات والإشعارات</h2><p>المرحلة الثانية: بعد الارتباط الفعلي بالمشروعات، أدخل مبالغ الارتباط/المطالبة على الأنواع ثم يصدر التوزيع والإشعار المدين وكتاب المطالبة آلياً.</p></div>
   <div class="page-actions"><button class="btn primary" onclick="startNewClaimProject()">+ مشروع جديد</button><button class="btn" onclick="cloneProposalToClaims()">نسخ من المقترح</button></div>
@@ -842,6 +890,7 @@ html,body{height:auto!important;min-height:0!important;margin:0!important;paddin
     <div class="field"><label>صفة التوقيع (قابلة للتعديل)</label><input id="claimSignatory" placeholder="مثال: وكيل ديوان الخدمة المدنية (ندباً)" oninput="updateManualSignatory(this.value,'claim')"></div>
     <div class="field"><label>اسم الموقّع (قابل للتعديل)</label><input id="claimSignatoryName" placeholder="مثال: صلاح خالد محمد الصقعبي" oninput="updateManualSignatoryName(this.value,'claim')"></div>
     <button class="btn primary" onclick="printCurrentPreview()">طباعة / PDF</button>
+    <button class="btn" onclick="openArchiveForCurrent('claim')">أرشفة / Scan الكتاب</button>
     <button class="btn" onclick="printAllClaims()">طباعة جميع الجهات</button>
   </div>
  </div>
@@ -910,6 +959,7 @@ let proposalSelectedTypeCode = '';
 let claimSelectedTypeCode = '';
 if(!state.settings.signatoryName) state.settings.signatoryName='صلاح خالد محمد الصقعبي';
 if(!state.supplements || typeof state.supplements!=='object') state.supplements={};
+if(!Array.isArray(state.bookArchive)) state.bookArchive=[];
 
 function deepClone(x){return JSON.parse(JSON.stringify(x))}
 function loadState(){
@@ -983,6 +1033,111 @@ function typeOutputOrder(){
 }
 function projectTypeOrder(){
  return orderedAccountTypes();
+}
+
+
+
+/* ===== إدارة أرشيف الكتب المصدرة ===== */
+let archiveEditId=null;
+const ARCHIVE_BUCKET='book-archive';
+function archiveTypeLabel(v){return ({proposal:'كتاب مقترح الميزانية',supplement:'كتاب إلحاق / استدراك',claim:'كتاب مطالبة',other:'كتاب آخر'})[v]||v||'كتاب'}
+function todayIso(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function archiveAgencyBySeq(seq){return state.agencies.find(a=>String(a.seq)===String(seq))||null}
+function ensureArchiveState(){if(!Array.isArray(state.bookArchive))state.bookArchive=[]}
+function archiveStoragePathUrl(path){return String(path||'').split('/').map(encodeURIComponent).join('/')}
+function archivePublicUrl(path){return 'https://gmkfnvqkarhgxcwenozi.supabase.co/storage/v1/object/public/'+ARCHIVE_BUCKET+'/'+archiveStoragePathUrl(path)}
+function archiveSafeName(name){return String(name||'file').replace(/[^\w.\-\u0600-\u06FF]+/g,'_').slice(0,120)}
+function populateArchiveAgencySelects(){
+ ensureArchiveState();
+ const opts=state.agencies.map(a=>`<option value="${a.seq}">${a.seq} - ${esc(a.agency)}</option>`).join('');
+ const a=document.getElementById('archiveAgency');if(a){const old=a.value;a.innerHTML=opts;if(old&&state.agencies.some(x=>String(x.seq)===old))a.value=old;}
+ const f=document.getElementById('archiveFilterAgency');if(f){const old=f.value;f.innerHTML='<option value="">جميع الجهات</option>'+opts;if(old)f.value=old;}
+}
+function newArchiveRecord(){
+ ensureArchiveState();archiveEditId=null;populateArchiveAgencySelects();
+ const ids=['archiveOutboundNo','archiveOutboundDate','archiveSubject','archiveNotes'];ids.forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
+ const y=document.getElementById('archiveYear');if(y)y.value=state.settings.fiscalYear||'';
+ const d=document.getElementById('archiveExportDate');if(d)d.value=todayIso();
+ const t=document.getElementById('archiveDocType');if(t)t.value='proposal';
+ const s=document.getElementById('archiveScanFile');if(s)s.value='';const at=document.getElementById('archiveAttachments');if(at)at.value='';
+ const title=document.getElementById('archiveEditorTitle');if(title)title.textContent='تسجيل كتاب صادر جديد';
+ const files=document.getElementById('archiveCurrentFiles');if(files)files.innerHTML='';
+ const st=document.getElementById('archiveUploadStatus');if(st)st.textContent='';
+}
+function openArchiveForCurrent(source){
+ const fromClaim=source==='claim';
+ const sel=document.getElementById(fromClaim?'claimAgency':'docAgency');
+ const idx=Number(sel?.value||0),ag=state.agencies[idx];
+ document.querySelectorAll('.navbtn').forEach(x=>x.classList.toggle('active',x.dataset.page==='archive'));
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page-archive')?.classList.add('active');
+ newArchiveRecord();
+ if(ag){const a=document.getElementById('archiveAgency');if(a)a.value=String(ag.seq)}
+ const type=document.getElementById('archiveDocType');
+ if(type){if(fromClaim)type.value='claim';else type.value=isSupplementKind()?'supplement':'proposal';}
+ const subject=document.getElementById('archiveSubject');
+ if(subject){subject.value=fromClaim?(state.settings.claimSubject||'كتاب مطالبة'):(isSupplementKind()?'إلحاق بشأن مشروع ميزانية الجهات الحكومية المستخدمة للنظم المتكاملة':(state.settings.proposalSubject||'مشروع ميزانية الجهات الحكومية المستخدمة للنظم المتكاملة'));}
+ renderArchive();
+ setTimeout(()=>document.getElementById('archiveOutboundNo')?.focus(),0);
+}
+async function uploadArchiveFile(file,recordId,agencySeq,role){
+ if(!file)return null;
+ const path=`${state.settings.fiscalYear.replace(/\//g,'-')}/${agencySeq}/${recordId}/${Date.now()}_${Math.random().toString(36).slice(2,7)}_${archiveSafeName(file.name)}`;
+ const url='https://gmkfnvqkarhgxcwenozi.supabase.co/storage/v1/object/'+ARCHIVE_BUCKET+'/'+archiveStoragePathUrl(path);
+ const r=await fetch(url,{method:'POST',headers:{'apikey':'sb_publishable_uQ6Z4s-eA5hY4vrTdxjqVg_JiBJa7dy','x-upsert':'true','Content-Type':file.type||'application/octet-stream'},body:file});
+ if(!r.ok)throw new Error('تعذر رفع الملف: '+file.name+' ('+r.status+')');
+ return {id:Date.now().toString(36)+Math.random().toString(36).slice(2),name:file.name,path,url:archivePublicUrl(path),type:file.type||'',size:file.size||0,role,uploadedAt:new Date().toISOString()};
+}
+async function deleteArchiveStorage(path){
+ if(!path)return;
+ try{await fetch('https://gmkfnvqkarhgxcwenozi.supabase.co/storage/v1/object/'+ARCHIVE_BUCKET,{method:'DELETE',headers:{'apikey':'sb_publishable_uQ6Z4s-eA5hY4vrTdxjqVg_JiBJa7dy','Content-Type':'application/json'},body:JSON.stringify({prefixes:[path]})});}catch(e){console.warn('storage delete failed',e)}
+}
+async function saveArchiveRecord(){
+ ensureArchiveState();
+ const agencySeq=Number(document.getElementById('archiveAgency')?.value||0);const agency=archiveAgencyBySeq(agencySeq);
+ if(!agency){alert('يرجى اختيار الجهة.');return}
+ const outboundNo=(document.getElementById('archiveOutboundNo')?.value||'').trim();
+ if(!outboundNo && !confirm('لم يتم إدخال رقم الصادر. هل تريد الحفظ بدونه؟'))return;
+ const btn=document.getElementById('archiveSaveBtn'),status=document.getElementById('archiveUploadStatus');if(btn)btn.disabled=true;if(status)status.textContent='جارٍ رفع الملفات وحفظ الكتاب...';
+ try{
+  let rec=archiveEditId?state.bookArchive.find(x=>x.id===archiveEditId):null;
+  if(!rec){rec={id:'bk_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),createdAt:new Date().toISOString(),files:[]};state.bookArchive.unshift(rec);archiveEditId=rec.id}
+  Object.assign(rec,{agencySeq,agencyName:agency.agency,docType:document.getElementById('archiveDocType')?.value||'proposal',fiscalYear:(document.getElementById('archiveYear')?.value||state.settings.fiscalYear).trim(),outboundNo,outboundDate:document.getElementById('archiveOutboundDate')?.value||'',exportDate:document.getElementById('archiveExportDate')?.value||todayIso(),subject:(document.getElementById('archiveSubject')?.value||'').trim(),notes:(document.getElementById('archiveNotes')?.value||'').trim(),updatedAt:new Date().toISOString()});
+  if(!Array.isArray(rec.files))rec.files=[];
+  const scan=document.getElementById('archiveScanFile')?.files?.[0];
+  if(scan){const oldScan=rec.files.filter(f=>f.role==='scan');for(const f of oldScan){await deleteArchiveStorage(f.path)}rec.files=rec.files.filter(f=>f.role!=='scan');rec.files.push(await uploadArchiveFile(scan,rec.id,agencySeq,'scan'));}
+  const att=Array.from(document.getElementById('archiveAttachments')?.files||[]);
+  for(const file of att)rec.files.push(await uploadArchiveFile(file,rec.id,agencySeq,'attachment'));
+  autoSave();
+  if(status)status.textContent='تم حفظ الكتاب وربط الملفات بالجهة';
+  renderArchive();editArchiveRecord(rec.id);toast('تم أرشفة الكتاب وربطه بجهته');
+ }catch(e){console.error(e);alert(e.message||'تعذر حفظ الأرشيف');if(status)status.textContent='حدث خطأ أثناء الحفظ';}
+ finally{if(btn)btn.disabled=false}
+}
+function editArchiveRecord(id){
+ ensureArchiveState();const r=state.bookArchive.find(x=>x.id===id);if(!r)return;archiveEditId=id;populateArchiveAgencySelects();
+ const vals={archiveAgency:String(r.agencySeq||''),archiveDocType:r.docType||'proposal',archiveYear:r.fiscalYear||state.settings.fiscalYear,archiveOutboundNo:r.outboundNo||'',archiveOutboundDate:r.outboundDate||'',archiveExportDate:r.exportDate||'',archiveSubject:r.subject||'',archiveNotes:r.notes||''};
+ Object.entries(vals).forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.value=v});
+ const sf=document.getElementById('archiveScanFile');if(sf)sf.value='';const af=document.getElementById('archiveAttachments');if(af)af.value='';
+ const title=document.getElementById('archiveEditorTitle');if(title)title.textContent='تعديل / استكمال أرشيف الكتاب';
+ renderArchiveCurrentFiles(r);document.getElementById('archiveEditorPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function renderArchiveCurrentFiles(r){
+ const box=document.getElementById('archiveCurrentFiles');if(!box)return;const files=Array.isArray(r?.files)?r.files:[];
+ box.innerHTML=files.length?'<h4 style="margin:8px 0 0">الملفات المرتبطة بهذا الكتاب</h4>'+files.map(f=>`<div class="archive-file-row"><div class="archive-file-meta"><div class="archive-file-name">${f.role==='scan'?'نسخة Scan: ':'مرفق: '}${esc(f.name)}</div><div class="archive-file-sub">${f.size?Math.round(f.size/1024)+' KB':''}</div></div><div class="archive-actions"><a class="btn" href="${f.url}" target="_blank" rel="noopener">فتح</a><button class="btn danger" onclick="removeArchiveFile('${r.id}','${f.id}')">حذف</button></div></div>`).join(''):'<div class="muted">لا توجد ملفات مرفوعة لهذا الكتاب حتى الآن.</div>';
+}
+async function removeArchiveFile(recordId,fileId){
+ const r=state.bookArchive.find(x=>x.id===recordId);if(!r)return;const f=(r.files||[]).find(x=>x.id===fileId);if(!f)return;if(!confirm('حذف الملف من أرشيف الكتاب؟'))return;await deleteArchiveStorage(f.path);r.files=(r.files||[]).filter(x=>x.id!==fileId);r.updatedAt=new Date().toISOString();autoSave();renderArchiveCurrentFiles(r);renderArchive();toast('تم حذف الملف');
+}
+async function deleteArchiveRecord(id){
+ ensureArchiveState();const r=state.bookArchive.find(x=>x.id===id);if(!r||!confirm('حذف سجل الكتاب وجميع ملفاته من الأرشيف؟'))return;
+ for(const f of (r.files||[]))await deleteArchiveStorage(f.path);state.bookArchive=state.bookArchive.filter(x=>x.id!==id);if(archiveEditId===id)newArchiveRecord();autoSave();renderArchive();toast('تم حذف سجل الكتاب');
+}
+function renderArchive(){
+ ensureArchiveState();populateArchiveAgencySelects();const body=document.getElementById('archiveBody');if(!body)return;
+ const agency=document.getElementById('archiveFilterAgency')?.value||'',q=(document.getElementById('archiveSearch')?.value||'').trim().toLowerCase();
+ const rows=state.bookArchive.filter(r=>(!agency||String(r.agencySeq)===agency)&&(!q||[r.agencyName,r.outboundNo,r.subject,r.notes,archiveTypeLabel(r.docType),r.fiscalYear].join(' ').toLowerCase().includes(q)));
+ body.innerHTML=rows.length?rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.agencyName||archiveAgencyBySeq(r.agencySeq)?.agency||'')}</td><td>${esc(archiveTypeLabel(r.docType))}</td><td>${esc(r.outboundNo||'—')}</td><td>${esc(r.outboundDate||r.exportDate||'—')}</td><td class="center">${(r.files||[]).length}</td><td><div class="archive-actions"><button class="btn" onclick="editArchiveRecord('${r.id}')">فتح</button><button class="btn danger" onclick="deleteArchiveRecord('${r.id}')">حذف</button></div></td></tr>`).join(''):'<tr><td colspan="7" class="center muted">لا توجد كتب مؤرشفة مطابقة.</td></tr>';
+ if(archiveEditId){const r=state.bookArchive.find(x=>x.id===archiveEditId);if(r)renderArchiveCurrentFiles(r)}
 }
 
 function renderAll(){
@@ -1938,14 +2093,14 @@ function renderAll(){
   document.getElementById('fyQuick').value=state.settings.fiscalYear;
   document.getElementById('docYear').value=state.settings.fiscalYear;
   document.getElementById('appTitle').textContent=state.settings.systemTitle;
-  renderDashboard();renderAgencies();renderProjects('proposal');renderProjects('claim');renderDistribution();fillAgencySelects();loadSettingsForm();
+  renderDashboard();renderAgencies();renderProjects('proposal');renderProjects('claim');renderDistribution();fillAgencySelects();loadSettingsForm();renderArchive();
   toggleSupplementPanel();previewProposalDocs();previewClaimDocs();updateSupplementAutoStatus();
 }
 
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>{
  document.querySelectorAll('.navbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page-'+b.dataset.page).classList.add('active');
- if(b.dataset.page==='documents')previewProposalDocs();if(b.dataset.page==='claims')previewClaimDocs();
+ if(b.dataset.page==='documents')previewProposalDocs();if(b.dataset.page==='claims')previewClaimDocs();if(b.dataset.page==='archive'){populateArchiveAgencySelects();renderArchive();}
 }));
 document.getElementById('fyQuick').addEventListener('change',e=>syncYear(e.target.value));
 renderAll();
@@ -1975,7 +2130,7 @@ renderAll();
     if(serialized===lastCloud) return;
     applyingRemote=true;
     try{
-      if(typeof state!=='undefined') state=JSON.parse(serialized);
+      if(typeof state!=='undefined'){ state=JSON.parse(serialized); if(!Array.isArray(state.bookArchive))state.bookArchive=[]; }
       nativeSet.call(localStorage,STORAGE_KEY,serialized);
       lastCloud=serialized;
       lastUpdated=updatedAt||lastUpdated;
