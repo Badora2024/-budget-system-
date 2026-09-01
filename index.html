@@ -738,6 +738,18 @@ html,body{height:auto!important;min-height:0!important;margin:0!important;paddin
 .archive-editor-title{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap}
 @media(max-width:850px){.archive-grid{grid-template-columns:1fr}}
 @media print{#page-archive{display:none!important}}
+
+/* ===== المسح الجماعي الذكي للكتب ===== */
+.bulk-scan-panel{border:2px solid #9dbbd2;background:#f7fbff}
+.bulk-scan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.bulk-scan-head h3{margin-bottom:4px}.bulk-scan-note{font-size:13px;color:var(--muted);line-height:1.7}
+.bulk-scan-controls{display:grid;grid-template-columns:minmax(260px,1.3fr) minmax(190px,.7fr) auto;gap:10px;align-items:end;margin-top:12px}
+.bulk-scan-progress{margin-top:12px;padding:10px 12px;border:1px solid #b7cddd;border-radius:9px;background:#fff;display:none}
+.bulk-scan-progress.show{display:block}.bulk-scan-progress strong{color:#1f4e79}
+.bulk-scan-results{margin-top:12px}.bulk-scan-results table select{min-width:190px;border:1.5px solid #9fb1ba;border-radius:7px;padding:7px;background:#fff}
+.bulk-scan-badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#e2eef7;color:#1f4e79;font-weight:700;font-size:12px}
+.bulk-scan-ok{color:#1c5c3d;font-weight:800}.bulk-scan-warn{color:#8a5a00;font-weight:800}.bulk-scan-error{color:#8f1d1d;font-weight:800}
+@media(max-width:850px){.bulk-scan-controls{grid-template-columns:1fr}.bulk-scan-results .tablewrap{overflow-x:auto}.bulk-scan-results table{min-width:760px}}
 </style>
 </head>
 <body>
@@ -845,6 +857,20 @@ html,body{height:auto!important;min-height:0!important;margin:0!important;paddin
 <section id="page-archive" class="page">
  <div class="pagehead"><div><h2>أرشيف الكتب المصدّرة</h2><p>ربط كل كتاب صادر بجهته، مع حفظ نسخة الـ Scan وجميع المرفقات في مكان واحد وإتاحتها من جميع الأجهزة.</p></div>
   <div class="page-actions"><button class="btn primary" onclick="newArchiveRecord()">+ تسجيل كتاب صادر</button></div>
+ </div>
+
+ <div class="panel bulk-scan-panel">
+  <div class="bulk-scan-head">
+   <div><h3>المسح الجماعي الذكي لجميع الكتب</h3><div class="bulk-scan-note">ارفع ملف PDF واحداً ناتجاً من الماسح الضوئي ويحتوي كتب جميع الجهات بالترتيب. سيقرأ النظام صفحات الملف، يتعرّف آلياً على الجهة من نص الكتاب، ويجمع صفحات كل كتاب ومرفقاته حتى بداية الكتاب التالي، ثم يوزعها على أرشيف الجهات بعد مراجعتك.</div></div>
+   <span class="bulk-scan-badge">رفع واحد لجميع الجهات</span>
+  </div>
+  <div class="bulk-scan-controls">
+   <div class="field"><label>ملف الـ Scan الجماعي (PDF)</label><input id="bulkScanFile" type="file" accept="application/pdf"></div>
+   <div class="field"><label>طريقة الفحص</label><select id="bulkScanMode"><option value="auto">تلقائي — نص PDF ثم OCR عند الحاجة</option><option value="ocr">OCR كامل — للملفات المصورة فقط (أبطأ)</option></select></div>
+   <button class="btn primary" id="bulkScanAnalyzeBtn" onclick="analyzeBulkScan()">فحص وتوزيع آلي</button>
+  </div>
+  <div id="bulkScanProgress" class="bulk-scan-progress"></div>
+  <div id="bulkScanResults" class="bulk-scan-results"></div>
  </div>
  <div class="panel" id="archiveEditorPanel">
   <div class="archive-editor-title"><h3 id="archiveEditorTitle">تسجيل كتاب صادر جديد</h3><span class="archive-status" id="archiveUploadStatus"></span></div>
@@ -1036,6 +1062,140 @@ function projectTypeOrder(){
 }
 
 
+
+
+/* ===== المسح الجماعي الذكي للكتب ===== */
+let bulkScanContext=null;
+function bulkNormArabic(v){
+ return String(v||'').toLowerCase().normalize('NFKC')
+  .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'').replace(/ـ/g,'')
+  .replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي')
+  .replace(/ة/g,'ه').replace(/[^\u0600-\u06FFa-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function bulkSetProgress(text,kind=''){
+ const e=document.getElementById('bulkScanProgress');if(!e)return;e.className='bulk-scan-progress show';
+ e.innerHTML=`<strong>${kind==='error'?'تعذر الإكمال':kind==='done'?'اكتمل الفحص':'جارٍ العمل'}</strong><div style="margin-top:5px">${esc(text)}</div>`;
+}
+function bulkLoadScript(src,globalName){
+ return new Promise((resolve,reject)=>{
+  if(globalName&&window[globalName])return resolve(window[globalName]);
+  const existing=[...document.scripts].find(x=>x.src===src);if(existing){existing.addEventListener('load',()=>resolve(globalName?window[globalName]:true),{once:true});existing.addEventListener('error',reject,{once:true});return}
+  const sc=document.createElement('script');sc.src=src;sc.crossOrigin='anonymous';sc.onload=()=>resolve(globalName?window[globalName]:true);sc.onerror=()=>reject(new Error('تعذر تحميل مكتبة المعالجة'));document.head.appendChild(sc);
+ });
+}
+async function ensureBulkPdfLibs(needOcr=false){
+ await bulkLoadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','pdfjsLib');
+ if(window.pdfjsLib)window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+ await bulkLoadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js','PDFLib');
+ if(needOcr)await bulkLoadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js','Tesseract');
+}
+function bulkAgencyMatch(text){
+ const n=bulkNormArabic(text);if(!n)return null;
+ let best=null;
+ for(const a of state.agencies){
+  const name=bulkNormArabic(a.agency);if(!name)continue;
+  let score=0;
+  if(n.includes(name))score=100+name.length;
+  else{
+   const words=name.split(' ').filter(w=>w.length>2);const hits=words.filter(w=>n.includes(w)).length;
+   if(words.length>=2&&hits===words.length)score=70+hits;
+   else if(words.length>=3&&hits>=Math.ceil(words.length*.75))score=40+hits;
+  }
+  if(score&&(!best||score>best.score))best={agency:a,score};
+ }
+ return best;
+}
+function bulkLooksLikeLetter(text,match){
+ const n=bulkNormArabic(text);if(!match)return false;
+ const markers=['الموضوع','السيد','السيده','المحترم','المحترمه','تحيه طيبه','وبعد'];
+ return markers.some(x=>n.includes(bulkNormArabic(x)));
+}
+function bulkDocTypeFromText(text){
+ const n=bulkNormArabic(text);
+ if(n.includes(bulkNormArabic('إلحاق'))||n.includes(bulkNormArabic('استدراك')))return 'supplement';
+ if(n.includes(bulkNormArabic('مطالبة'))||n.includes(bulkNormArabic('مطالبه')))return 'claim';
+ return 'proposal';
+}
+async function bulkExtractText(page,forceOcr=false,pageNo=0,total=0){
+ let text='';
+ if(!forceOcr){
+  try{const tc=await page.getTextContent();text=(tc.items||[]).map(x=>x.str||'').join(' ').trim()}catch(e){}
+ }
+ if(forceOcr||bulkNormArabic(text).length<25){
+  await ensureBulkPdfLibs(true);
+  bulkSetProgress(`قراءة الصفحة ${pageNo} من ${total} بالتعرّف الضوئي OCR — قد يستغرق ذلك وقتاً للملفات المصورة.`);
+  const vp=page.getViewport({scale:1.25});const c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
+  await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+  const r=await window.Tesseract.recognize(c,'ara+eng',{logger:m=>{if(m.status==='recognizing text')bulkSetProgress(`OCR الصفحة ${pageNo}/${total} — ${Math.round((m.progress||0)*100)}%`)}});
+  text=(r?.data?.text||text||'').trim();
+ }
+ return text;
+}
+async function analyzeBulkScan(){
+ const file=document.getElementById('bulkScanFile')?.files?.[0];if(!file){alert('اختر ملف PDF الجماعي أولاً.');return}
+ const btn=document.getElementById('bulkScanAnalyzeBtn');if(btn)btn.disabled=true;
+ try{
+  bulkSetProgress('جاري تجهيز محرك قراءة ملفات PDF...');
+  const forceOcr=document.getElementById('bulkScanMode')?.value==='ocr';await ensureBulkPdfLibs(forceOcr);
+  const bytes=new Uint8Array(await file.arrayBuffer());const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;const total=pdf.numPages;
+  const pages=[];let hasOcr=false;
+  for(let i=1;i<=total;i++){
+   bulkSetProgress(`فحص الصفحة ${i} من ${total} وتحديد الجهة وبداية الكتاب...`);
+   const page=await pdf.getPage(i);const text=await bulkExtractText(page,forceOcr,i,total);if(bulkNormArabic(text).length<25)hasOcr=true;
+   const match=bulkAgencyMatch(text);pages.push({pageNo:i,text,match,isStart:bulkLooksLikeLetter(text,match),docType:bulkDocTypeFromText(text)});
+  }
+  let starts=pages.filter(x=>x.isStart);
+  if(!starts.length){
+   // fallback: أي صفحة تعرّفنا فيها على جهة تعتبر بداية محتملة
+   starts=pages.filter(x=>x.match);
+  }
+  if(!starts.length)throw new Error('لم أتمكن من التعرف على أي جهة داخل الملف. جرّب وضع طريقة الفحص على OCR كامل أو استخدم PDF أوضح.');
+  const groups=[];
+  for(let j=0;j<starts.length;j++){
+   const st=starts[j],next=starts[j+1];const from=st.pageNo,to=next?next.pageNo-1:total;
+   if(to<from)continue;
+   groups.push({id:'bg_'+Date.now().toString(36)+'_'+j,from,to,agencySeq:st.match.agency.seq,agencyName:st.match.agency.agency,docType:st.docType,text:st.text,confidence:st.match.score});
+  }
+  // إزالة بدايات مكررة داخل نفس مجموعة/نفس الجهة إذا ظهرت الجهة في صفحة مرفق ملاصقة
+  const cleaned=[];
+  for(const g of groups){
+   const prev=cleaned[cleaned.length-1];
+   if(prev&&prev.agencySeq===g.agencySeq&&g.from===prev.to+1&&g.to===g.from){prev.to=g.to;continue}
+   cleaned.push(g);
+  }
+  bulkScanContext={file,bytes,groups:cleaned,totalPages:total};renderBulkScanReview();
+  bulkSetProgress(`تم تحليل ${total} صفحة والتعرف على ${cleaned.length} كتاب/مجموعة. راجع الجهة ونوع الكتاب ثم اضغط «اعتماد وتوزيع على الجهات».`,'done');
+ }catch(e){console.error(e);bulkScanContext=null;document.getElementById('bulkScanResults').innerHTML='';bulkSetProgress(e.message||'حدث خطأ أثناء الفحص','error');}
+ finally{if(btn)btn.disabled=false}
+}
+function renderBulkScanReview(){
+ const box=document.getElementById('bulkScanResults');if(!box||!bulkScanContext)return;
+ const agencyOpts=state.agencies.map(a=>`<option value="${a.seq}">${a.seq} - ${esc(a.agency)}</option>`).join('');
+ const rows=bulkScanContext.groups.map((g,i)=>`<tr><td>${i+1}</td><td>${g.from===g.to?g.from:g.from+' - '+g.to}</td><td><select onchange="bulkReviewSetAgency(${i},this.value)">${agencyOpts}</select></td><td><select onchange="bulkReviewSetType(${i},this.value)"><option value="proposal">كتاب مقترح الميزانية</option><option value="supplement">كتاب إلحاق / استدراك</option><option value="claim">كتاب مطالبة</option><option value="other">كتاب آخر</option></select></td><td><span class="${g.confidence>=100?'bulk-scan-ok':'bulk-scan-warn'}">${g.confidence>=100?'مطابقة قوية':'تحتاج مراجعة'}</span></td></tr>`).join('');
+ box.innerHTML=`<div class="alert okbox">تم الاكتشاف آلياً. يمكنك تصحيح أي جهة أو نوع كتاب قبل الاعتماد النهائي.</div><div class="tablewrap"><table><thead><tr><th>م</th><th>صفحات الملف</th><th>الجهة المكتشفة</th><th>نوع الكتاب</th><th>نتيجة القراءة</th></tr></thead><tbody>${rows}</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary" id="bulkScanCommitBtn" onclick="commitBulkScan()">اعتماد وتوزيع على الجهات</button><button class="btn" onclick="clearBulkScan()">إلغاء النتائج</button></div>`;
+ const sels=box.querySelectorAll('tbody tr');sels.forEach((tr,i)=>{const g=bulkScanContext.groups[i];tr.querySelectorAll('select')[0].value=String(g.agencySeq);tr.querySelectorAll('select')[1].value=g.docType});
+}
+function bulkReviewSetAgency(i,v){const g=bulkScanContext?.groups?.[i],a=archiveAgencyBySeq(Number(v));if(g&&a){g.agencySeq=a.seq;g.agencyName=a.agency}}
+function bulkReviewSetType(i,v){const g=bulkScanContext?.groups?.[i];if(g)g.docType=v}
+function clearBulkScan(){bulkScanContext=null;const r=document.getElementById('bulkScanResults');if(r)r.innerHTML='';const p=document.getElementById('bulkScanProgress');if(p){p.className='bulk-scan-progress';p.innerHTML=''}const f=document.getElementById('bulkScanFile');if(f)f.value=''}
+async function bulkMakePdfBlob(srcBytes,from,to){
+ await ensureBulkPdfLibs(false);const src=await window.PDFLib.PDFDocument.load(srcBytes);const out=await window.PDFLib.PDFDocument.create();const idx=[];for(let p=from;p<=to;p++)idx.push(p-1);const copied=await out.copyPages(src,idx);copied.forEach(pg=>out.addPage(pg));const b=await out.save();return new Blob([b],{type:'application/pdf'});
+}
+async function commitBulkScan(){
+ if(!bulkScanContext?.groups?.length)return;const btn=document.getElementById('bulkScanCommitBtn');if(btn)btn.disabled=true;ensureArchiveState();
+ try{
+  const total=bulkScanContext.groups.length;
+  for(let i=0;i<total;i++){
+   const g=bulkScanContext.groups[i],agency=archiveAgencyBySeq(g.agencySeq);if(!agency)throw new Error('يوجد كتاب بدون جهة صحيحة في صف '+(i+1));
+   bulkSetProgress(`تجهيز وأرشفة كتاب ${i+1} من ${total}: ${agency.agency}`);
+   const blob=await bulkMakePdfBlob(bulkScanContext.bytes,g.from,g.to);const fileName=`${archiveSafeName(agency.agency)}_${archiveTypeLabel(g.docType).replace(/\s+/g,'_')}_صفحات_${g.from}-${g.to}.pdf`;
+   const scanFile=new File([blob],fileName,{type:'application/pdf'});const rec={id:'bk_'+Date.now().toString(36)+'_'+i+'_'+Math.random().toString(36).slice(2,6),createdAt:new Date().toISOString(),files:[],agencySeq:agency.seq,agencyName:agency.agency,docType:g.docType,fiscalYear:state.settings.fiscalYear,outboundNo:'',outboundDate:'',exportDate:todayIso(),subject:archiveTypeLabel(g.docType)+' - '+agency.agency,notes:`أرشفة آلية من ملف Scan جماعي؛ الصفحات ${g.from} إلى ${g.to} من أصل ${bulkScanContext.totalPages} صفحة.`,updatedAt:new Date().toISOString(),bulkScan:true};
+   rec.files.push(await uploadArchiveFile(scanFile,rec.id,agency.seq,'scan'));state.bookArchive.unshift(rec);autoSave();
+  }
+  renderArchive();bulkSetProgress(`تم توزيع وأرشفة ${total} كتاباً على الجهات بنجاح. يمكن فتح كل جهة من جدول الأرشيف أدناه.`,'done');toast('تم توزيع ملف الـ Scan الجماعي على الجهات');bulkScanContext=null;document.getElementById('bulkScanResults').innerHTML='';
+ }catch(e){console.error(e);bulkSetProgress(e.message||'تعذر اعتماد الأرشفة الجماعية','error');}
+ finally{if(btn)btn.disabled=false}
+}
 
 /* ===== إدارة أرشيف الكتب المصدرة ===== */
 let archiveEditId=null;
