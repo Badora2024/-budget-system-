@@ -699,6 +699,35 @@ td{font-size:13px}tbody tr:hover{background:#fafcfd}
   .supplement-year-line{margin-top:1.2mm!important;}
 }
 
+
+/* ===== تحسين الوضوح والتباين - نسخة GitHub المتزامنة ===== */
+@media screen{
+:root{--text:#11181d;--muted:#3f4d55;--line:#b9c6cc;--accent:#2f6ba3;--accent2:#1f4e79}
+body{color:var(--text);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.brand h1{font-size:19px;font-weight:800;color:#10202a}.brand small{color:#33424b;font-size:12.5px;font-weight:600}
+.top-actions label{color:#10202a;font-weight:700}.top-actions select,.top-actions input{border:1.5px solid #9fb1ba;color:#11181d;font-weight:600;background:#fff}
+.sidebar{background:#122e37}.navbtn{color:#eef5f7;font-size:15px;font-weight:600;padding:13px 14px}.navbtn:hover{background:rgba(255,255,255,.16);color:#fff}.navbtn.active{background:#fff;color:#12303a;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.pagehead h2{font-size:25px;font-weight:800;color:#0e1c23}.pagehead p{color:#33424b;font-size:14px;font-weight:600}
+.card,.panel{border:1.5px solid #b9c6cc}.kpi .label{color:#33424b;font-size:14px;font-weight:700}.kpi .value{font-size:28px;font-weight:800;color:#0e1c23}.kpi .sub{color:#3f4d55;font-size:13px;font-weight:600}.panel h3{font-size:18px;font-weight:800;color:#0e1c23}
+.btn{border:1.5px solid #9fb1ba;color:#12242d;font-weight:700;background:#fff}.btn:hover{border-color:#5f7681;background:#f2f7f9}.btn.primary{background:#1f4e79;border-color:#1f4e79;color:#fff;font-weight:800}.btn.primary:hover{background:#173d60}.btn.danger{color:#8f1d1d;border-color:#d3a5a5;font-weight:800}.btn.ok{color:#1c5c3d;font-weight:800}
+.field label{color:#12242d;font-size:13.5px}.field input,.field select,.field textarea,.search,.top-actions input,.top-actions select{border:1.5px solid #9fb1ba;color:#11181d;background:#fff;font-weight:600}::placeholder{color:#5c6b73;opacity:1}select{color:#11181d}
+.tablewrap{border:1.5px solid #9fb1ba}th{background:#e4edf2;color:#0e1c23;font-weight:800;font-size:13.5px;border-bottom:1.5px solid #9fb1ba}td{color:#1a242a;font-size:13.5px}tbody tr:hover{background:#f0f6f9}.muted{color:#3f4d55;font-weight:600}.pill{background:#e2eef7;color:#1f4e79;font-weight:700;border:1px solid #b8d2e4}
+.project-editor-card{border:1.5px solid #a9c3cc;background:#fff}.project-editor-title h3{color:#1f4e79;font-size:19px;font-weight:800}.project-status{background:#e2eef7;color:#1f4e79;border:1px solid #b8d2e4}.project-entry-box{border:1.5px solid #b3c8cf;background:#fff}.project-entry-box label{color:#1c2b33;font-size:12.5px}.project-entry-box .type-code{color:#1f4e79}.project-entry-box input{border:1.5px solid #9fb1ba;color:#11181d}.project-list-summary h4{color:#12242d;font-weight:800}.project-editor-total{background:#e2eef7;border:1.5px solid #9cc0d6;color:#173d60;font-weight:800}.type-dropdown-editor{border:1.5px solid #a9c3cc;background:#fff}.type-empty-note{color:#33424b;border:1.5px dashed #9fb1ba;font-weight:600}.amountbox{border:1.5px solid #b3c8cf}.amountbox label{color:#33424b;font-weight:700}.amountbox input{color:#11181d;font-weight:700}.project-name,.project-name-field input{border:1.5px solid #9fb1ba;color:#11181d}
+.alert{background:#fff6da;border:1.5px solid #dfc678;color:#4a3a08;font-weight:600}.okbox{background:#eaf7ef;border-color:#9fd3b6;color:#123f2b}.inline-input,.recipient-input,.adjustment-input{border:1.5px solid #9fb1ba;color:#11181d;font-weight:700}.adjustment-hint{color:#3f4d55;font-weight:600}.adjustment-input::placeholder{color:#5c6b73}
+.supplement-panel{border:1.5px solid #9fb1ba;background:#f4f9fb}.supplement-note{color:#33424b;font-weight:600}.supplement-amount{border:1.5px solid #b3c8cf}.supplement-amount label{color:#12242d}.supplement-agency-select{border:1.5px solid #b3c8cf}.supplement-agency-item{border:1.5px solid #b3c8cf;color:#1a242a}.supplement-agency-item.current{border-color:#1f4e79;background:#e2eef7}.supplement-selection-count{color:#1f4e79}.supplement-badge{border:1.5px solid #173d60;color:#173d60}.supplement-agency-select .select-all{color:#122e37}.supplement-agency-select input[type=checkbox]{accent-color:#1f4e79}
+.preview-shell{background:#97a4aa}.modalbox{border:1.5px solid #9fb1ba}.modalhead h3{font-weight:800;color:#0e1c23}.card h3{color:#0e1c23;font-weight:800}.card p.muted{color:#3f4d55;font-weight:600}
+@media(max-width:650px){.navbtn{font-size:15px;padding:13px 12px}.btn{min-height:40px}.field input,.field select,.field textarea,.search{min-height:42px;font-size:15px}}
+}
+
+/* منع الصفحات البيضاء وعناصر الواجهة عند الطباعة */
+@media print{
+html,body{height:auto!important;min-height:0!important;margin:0!important;padding:0!important;overflow:visible!important}
+#lovable-badge,.lovable-badge,[id*="lovable"],[class*="lovable"],[data-lovable],gpt-badge,lovable-badge,#lovable-edit-badge,iframe,[data-testid*="badge"],.no-print,.toaster,[data-sonner-toaster]{display:none!important;visibility:hidden!important}
+.preview-shell::before,.preview-shell::after,.page.active::after,.main::after,.app::after{content:none!important;display:none!important}
+.paper{min-height:0!important;height:auto!important;box-sizing:border-box!important;overflow:hidden!important;break-inside:avoid-page!important;page-break-inside:avoid!important;break-after:page!important;page-break-after:always!important;margin:0!important}
+.paper.landscape{min-height:0!important;height:auto!important}.paper.landscape.report-paper{height:209mm!important;min-height:0!important;max-height:209mm!important}.paper:last-child,.paper:last-of-type{break-after:auto!important;page-break-after:auto!important}.paper>*:last-child{margin-bottom:0!important}
+}
+
 </style>
 </head>
 <body>
@@ -1921,5 +1950,81 @@ document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>{
 document.getElementById('fyQuick').addEventListener('change',e=>syncYear(e.target.value));
 renderAll();
 </script>
+
+<script>
+/* ===== مزامنة Supabase مباشرة - GitHub Pages ===== */
+(function(){
+  'use strict';
+  const CLOUD_URL='https://gmkfnvqkarhgxcwenozi.supabase.co';
+  const CLOUD_KEY='sb_publishable_uQ6Z4s-eA5hY4vrTdxjqVg_JiBJa7dy';
+  const STORAGE_KEY='cscGovBudgetSystemV3';
+  const ROW_ID='main';
+  const API=CLOUD_URL+'/rest/v1/app_state';
+  const clientId=Math.random().toString(36).slice(2)+Date.now().toString(36);
+  let applyingRemote=false, saveTimer=null, lastCloud='', lastUpdated='';
+  const nativeSet=Storage.prototype.setItem;
+
+  function headers(extra){return Object.assign({'apikey':CLOUD_KEY,'Content-Type':'application/json'},extra||{});}
+  function safeRender(){
+    try{ if(typeof renderAll==='function') renderAll(); }
+    catch(e){ console.error('render after cloud sync failed',e); }
+  }
+  function applyRemote(data,updatedAt){
+    if(!data || typeof data!=='object') return;
+    const serialized=JSON.stringify(data);
+    if(serialized===lastCloud) return;
+    applyingRemote=true;
+    try{
+      if(typeof state!=='undefined') state=JSON.parse(serialized);
+      nativeSet.call(localStorage,STORAGE_KEY,serialized);
+      lastCloud=serialized;
+      lastUpdated=updatedAt||lastUpdated;
+      safeRender();
+    }finally{ applyingRemote=false; }
+  }
+  async function pullCloud(){
+    try{
+      const r=await fetch(API+'?id=eq.'+encodeURIComponent(ROW_ID)+'&select=data,updated_at,updated_by',{headers:headers({'Accept':'application/json'}),cache:'no-store'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const rows=await r.json();
+      if(rows && rows[0] && rows[0].data){ applyRemote(rows[0].data,rows[0].updated_at||''); return true; }
+      return false;
+    }catch(e){ console.error('cloud load failed',e); return false; }
+  }
+  async function pushCloud(serialized){
+    if(applyingRemote || !serialized) return;
+    try{
+      const data=JSON.parse(serialized);
+      const now=new Date().toISOString();
+      const r=await fetch(API+'?on_conflict=id',{method:'POST',headers:headers({'Prefer':'resolution=merge-duplicates,return=minimal'}),body:JSON.stringify({id:ROW_ID,data:data,updated_by:clientId,updated_at:now})});
+      if(!r.ok) throw new Error('HTTP '+r.status+' '+await r.text());
+      lastCloud=serialized; lastUpdated=now;
+    }catch(e){ console.error('cloud save failed',e); }
+  }
+  function schedulePush(serialized){
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>pushCloud(serialized),400);
+  }
+  Storage.prototype.setItem=function(key,value){
+    nativeSet.call(this,key,value);
+    if(this===localStorage && key===STORAGE_KEY && !applyingRemote) schedulePush(String(value));
+  };
+
+  window.__applyRemoteState=function(next){ applyRemote(next,''); };
+  window.__budgetCloudRefresh=pullCloud;
+
+  async function boot(){
+    const found=await pullCloud();
+    if(!found){
+      try{ const local=localStorage.getItem(STORAGE_KEY); if(local) await pushCloud(local); }catch(_){ }
+    }
+    setInterval(()=>{ if(document.visibilityState==='visible') pullCloud(); },5000);
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') pullCloud(); });
+    window.addEventListener('focus',pullCloud);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+</script>
+
 </body>
 </html>
